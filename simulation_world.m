@@ -31,11 +31,13 @@ fs_kHz = 5;
 % Set the tempo and the octive for the conductor
 Octive = 5;
 tempo_s = 0.6; %This is the time in seconds for each note
+fprintf('Set tempo: %.2f seconds\n', tempo_s);
 
 %% Parameters for code simulation
 tempo_resolution = .05; %this is a value between 0 and 1. 1 being full resolution
 time_offset = 60;   % This is the delay to the start of the song.
-  
+fprintf('Set time offset: %.2f seconds\n', time_offset);
+
 %% Create the song given the tempo
 [song_freq_Hz, song_duration_s] = conductor_simulation(tempo_s,Octive);
 
@@ -118,6 +120,7 @@ for i=1:length(td)
     avg_tempo = avg_tempo+td(i);
 end
 avg_tempo = avg_tempo/length(td);
+fprintf('Detected tempo: %.2f seconds\n', avg_tempo);
 
 %% Sync the time
 ts = [];
@@ -131,14 +134,14 @@ for i=2:length(signal)
         ts_start = i; %in Hz
         if(ts_end ~= 0)
             beat = ((ts_start - ts_end)/(fs_Hz));
-            fprintf('beat %i \n',beat);
+            %fprintf('Detected beat %.2f seconds\n',beat);
             if(beat >= 2*.55 && beat <= 2*.65)
                 count = 0;
                 ts(j) = ts_end;
-                fprintf('beginning %i \n',ts_end);
+                %fprintf('Beginning at %.2f seconds\n',ts_end);
                 j = j + 1;
                 if(length(ts) == 3)
-                    found_time_offset = time_s(ts(1));
+                    found_time_offset = ts(1);
                     break
                 end
             else
@@ -158,4 +161,5 @@ for i=2:length(signal)
     end
     
 end
-actual_time_offset_s = time_s(time_offset); %print out the actual start time to compare.
+%actual_time_offset_s = time_s(found_time_offset); %print out the actual start time to compare.
+fprintf('Detected Time Offset: %.2f seconds\n', found_time_offset);
