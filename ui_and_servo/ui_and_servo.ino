@@ -24,9 +24,7 @@
 #define speakerPIN 5
 #define leftServo 10
 #define rightServo 9
-#define powerSwitch 7
 #define modeSwitch 6
-#define powerLED 4
 #define tempoPIN A0
 #define octavePIN A1
 
@@ -54,13 +52,11 @@ void setup()
 {
   pinMode(tempoPIN, INPUT); //tempo
   pinMode(octavePIN, INPUT); //octave
-  pinMode(powerSwitch, INPUT);
   pinMode(modeSwitch, INPUT);
   
     //set up outputs
   pinMode(speakerPIN, OUTPUT);
-  pinMode(powerLED, OUTPUT);
-
+  
   servo_left.attach(leftServo);
   servo_right.attach(rightServo);
   
@@ -78,7 +74,7 @@ void loop()
 {
   lcd.clear();
   int duration;                  
-  int tempo;
+  float tempo;
   int octave;
   int octave_pot;
   int tempo_pot;
@@ -86,88 +82,81 @@ void loop()
   bool servo_dir = false; //to keep track of the servos' direction
   servo_left.write(90);
   servo_right.write(0);
-  
-    //power off
-  while(digitalRead(powerSwitch)==0) 
-  { 
-    lcd.setCursor(0, 0);
-    lcd.print("Off");
-    digitalWrite(powerLED, LOW);
-  }
-  
   lcd.clear();
   
-  //power on
-  while (digitalRead(powerSwitch))
+  while (1)
   { 
+    //Serial.println(digitalRead(modeSwitch));
+    if(digitalRead(modeSwitch)==0){ //manual mode
       lcd.setCursor(0, 0);
-      lcd.print("On");
-      digitalWrite(powerLED, HIGH);
+      lcd.print("Manual");
       
-      if(digitalRead(modeSwitch)){ //manual mode
-        lcd.setCursor(0, 1);
-        lcd.print("Manual");
-        
-        //read the tempo pot
-        tempo_pot = analogRead(tempoPIN);
-        tempo = song_tempo*float(tempo_pot)/TempoCal; //read the tempo POT       
-        if(tempo<100){
-          tempo = 100;
-        }
+      //read the tempo pot
+      tempo_pot = analogRead(tempoPIN);
+      
+      tempo = song_tempo*float(tempo_pot)/TempoCal; //read the tempo POT       
+      //Serial.println(tempo);
+      if(tempo<100){
+        tempo = 100;
       }
-      else if (digitalRead(modeSwitch)==0){ //auto mode
-        lcd.setCursor(0, 1);
-        lcd.print("Auto  ");
-        
-        //get tempo and octave from the external song
-        tempo  = 200;
-        
-        //sync the song
+    }
+    else if (digitalRead(modeSwitch)){ //auto mode
+      lcd.setCursor(0, 0);
+      lcd.print("Auto  ");
+      
+      //get tempo and octave from the external song
+      tempo  = 200;
+      
+      //sync the song
 
+    }
+    octave_pot = analogRead(octavePIN);
+    if(octave_pot > 511) {
+      octave = 5;
+    } else {
+      octave = 4;
+    }
+
+    lcd.setCursor(0, 1);
+    lcd.print("Tempo: ");
+    lcd.setCursor(6, 1);
+    //Serial.print(tempo);
+    // Serial.print("   ");
+    //Serial.println((60000)/tempo);
+    lcd.print((60000)/tempo);
+    lcd.setCursor(7, 0);
+    lcd.print("Octave: ");
+    lcd.setCursor(14, 0);
+    lcd.print(octave);
+    //set the servos 
+    Serial.println(servo_counter);
+      if(servo_dir){
+        servo_left.write(180-servo_counter);
+        servo_right.write(servo_counter);
       }
-      octave_pot = analogRead(octavePIN);
-      if(octave_pot > 511) {
-        octave = 5;
-      } else {
-        octave = 4;
+      else{
+        servo_left.write(servo_counter);
+        servo_right.write(180-servo_counter);
       }
- 
-      lcd.setCursor(7, 0);
-      lcd.print("Tempo: ");
-      lcd.setCursor(13, 0);
-      lcd.print(tempo);
-      lcd.setCursor(7, 1);
-      lcd.print("Octave: ");
-      lcd.setCursor(14, 1);
-      lcd.print(octave);
-      //set the servos 
-        if(servo_dir){
-          servo_left.write(90-servo_counter);
-          servo_right.write(servo_counter);
-        }
-        else{
-          servo_left.write(servo_counter);
-          servo_right.write(90-servo_counter);
-        }
-     
-        servo_counter+=servoRate; 
-        if(servo_counter>90){
-          servo_counter = 0;
-          servo_dir = !servo_dir; //flip direction
-        }
-      
-      
-      //play the song
-      duration = beats[i_note_index] * tempo;
-      
-      tone(speakerPIN, notes[i_note_index]*pow(2,octave), duration);
-      delay(duration);
-        
-      //increment the note counter
-      ++i_note_index;
-      if(i_note_index >= songLength) 
-      {
-        i_note_index = 0;
+   
+      servo_counter+=servoRate; 
+      if(servo_counter>180){
+        servo_counter = 0;
+        servo_dir = !servo_dir; //flip direction
       }
+    
+    
+    //play the song
+    duration = beats[i_note_index] * tempo;
+    
+    tone(speakerPIN, notes[i_note_index]*pow(2,octave), duration);
+    delay(duration);
+      
+    //increment the note counter
+    ++i_note_index;
+    if(i_note_index >= songLength) 
+    {
+      i_note_index = 0;
+    }
   }
  }
