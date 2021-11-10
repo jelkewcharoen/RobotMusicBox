@@ -1,6 +1,6 @@
 int sensorPin = A2, octave, numReadings, rise_i, fall_i, i;
 double tempo, startPos;
-const int edgesLength = 5;
+const int edgesLength = 7;
 bool high, start;
 double value, threshold;
 unsigned long timeFromStart;
@@ -44,13 +44,13 @@ void setup() {
 
 
 void loop() {
-  int value = smoothInput(sensorPin);
 //  Serial.println(value);
 //  start = false;
-//  //Serial.println("start loop");
+  Serial.println("start loop");
+  start = false;
   while(!start) {
     findTempo(tempo);
-    Serial.println(tempo);
+//    Serial.println(tempo);
 //    start = true;
   }
 //  while(start) {
@@ -88,8 +88,13 @@ void findTempo(double &tempo) {
   unsigned long rise[edgesLength], fall[edgesLength];
   //Serial.println("find tempo");
   int i = 0, j = 0;
+  double total;
   while(i < edgesLength || j < edgesLength) {
       value = smoothInput(A2);
+      for(int i = 0; i < 5; i++) {
+        value += smoothInput(sensorPin);
+      }
+      value = value/5;
       //Serial.println(value);
       if(!high && value == 1) { //rising edge
           high = true;
@@ -100,27 +105,24 @@ void findTempo(double &tempo) {
       } else if(high && value == 0) { //falling edge
           high = false;
           fall[j] = millis();
-          Serial.print("fall: ");
-          Serial.println(fall[j]);
+//          Serial.print("fall: ");
+//          Serial.println(fall[j]);
           j++;
-      } 
+      }
   }
-  Serial.println(rise[1]-fall[0]);
-  Serial.println(rise[2]-fall[1]);
-  Serial.println(rise[3]-fall[2]);
 
-  double note = ((rise[1] - fall[0]) + (rise[2] - fall[1]) + (rise[3] - fall[2])) / 3;
+  for(int i = 0; i < (edgesLength-1); i++) {
+    Serial.print("difference: ");
+    Serial.println(rise[i+1] - fall[i]);
+    if((rise[i+1] - fall[i] >= 100) && (rise[i+1] - fall[i] < 1000))
+      total += rise[i+1] - fall[i];
+  }
+//  Serial.println(rise[1]-fall[0]);
+//  Serial.println(rise[2]-fall[1]);
+//  Serial.println(rise[3]-fall[2]);
+
+  double note = total / (edgesLength-1);
   Serial.println(note);
   tempo = note; //beats per second
   Serial.println(tempo);
 }
-//
-//double findStart(int falling_edges[], int rising_edges[]) {
-//  int diff = 0;
-//
-//  for(int j = 0; j < (edgesLength-1); j++) {
-//    diff += falling_edges[j+1] - rising_edges[j];
-//  }
-//  
-//  return (diff / (edgesLength - 1));
-//}
