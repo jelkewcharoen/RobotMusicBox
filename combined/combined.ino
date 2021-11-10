@@ -51,11 +51,17 @@ int songLength = 54;
 int notes[] = {C, rest, C, rest, C, rest, D, rest, E, rest, E, rest, D, rest, E, rest, F, rest, G, rest, high_C, rest, high_C, rest, high_C, rest, G, rest, G, rest, G, rest, E, rest, E, rest, E, rest, C, rest, C, rest, C, rest, G, rest, F, rest, E, rest, D, rest, C, rest};
 int beats[] = {2,1,2,1,2,1,1,1,2,1,2,1,1,1,2,1,1,1,6,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,2,1,1,1,5,1};
 
-//global variables
+//global variables -- ui
 double note_duration = 200, tempo = 5;
 boolean mode_bool = false; //true is auto, false is manual
 int octave = 5, octave_pot, tempo_pot, duration, i_note_index = 0;
 int song_tempo = 250;
+
+//global variables -- tempo and timing
+const int edgesLength = 4, errorVal = 10;
+double threshold;
+int numReadings;
+bool high;
 
 //servos
 Servo servo_left;
@@ -90,25 +96,20 @@ void setup() {
 }
 
 void loop() {
+  
   printToScreen();
   switch(mode) {
     case autoMode:
       switch(action) {
         case findTempo:
-          findAutoTempo();
           findOctave(octave);
-          action = findStart;
-          break;
-        case findStart:
-          //findStart();
-          action = start;
-          break;
-        case start:
+          initializeThreshold();
+          i_note_index = findAutoTempo();
           action = playSong;
           break;
         case playSong:
           //play the song
-          duration = beats[i_note_index] * tempo;
+          duration = beats[i_note_index] * note_duration;
           
           tone(speakerPIN, notes[i_note_index]*pow(2,octave), duration);
           delay(duration);
@@ -116,9 +117,8 @@ void loop() {
           //increment the note counter
           ++i_note_index;
           if(i_note_index >= songLength) 
-          {
             i_note_index = 0;
-          }
+            
           motors();
           break;
         
@@ -142,10 +142,10 @@ void loop() {
           //increment the note counter
           ++i_note_index;
           if(i_note_index >= songLength) 
-          {
             i_note_index = 0;
-          }
+          
           motors();
+          
           action = findTempo;
           break;
         
@@ -183,12 +183,93 @@ void motors() {
   }
 }
 
-void findAutoTempo() {
-  
+int smoothInput(int sensorPin) {
+  double value = 0, data = 0;
+
+  for (int i = 0; i < numReadings; i++){
+    //Serial.print("data: ");
+    data = (double)analogRead(micPIN)/512-1;
+    data = abs(data);
+//    Serial.println(data);
+    value += data;
+    //Serial.println(value);
+  }
+
+  // Take an average of all the readings.
+  value = value / (double)numReadings;
+
+  if(value > threshold)
+    return 1;
+  else
+    return 0;
 }
 
-void findAutoStart() {
-  
+int findAutoTempo() {
+  unsigned long rise[edgesLength], fall[edgesLength];
+  //Serial.println("find tempo");
+  int i = 0, j = 0, value = 0;
+  while(i < edgesLength && j < edgesLength) {
+      value = smoothInput(micPIN);
+      //Serial.println(value);
+      if(!high && value == 1) { //rising edge
+          rise[i] = millis();
+          i++;
+      } else if(high && value == 0) { //falling edge
+          fall[j] = millis();
+          j++;
+      } 
+  }
+
+  note_duration = ((rise[1] - fall[0]) + (rise[2] - fall[1]) + (rise[3] - fall[2])) / (edgesLength - 1);
+//  Serial.println(note);
+  tempo = 1000/note_duration; //beats per second
+
+  return findAutoStart(rise, fall);
+}
+
+int findAutoStart(unsigned long rise[], unsigned long fall[]) {
+  bool startNow = false;
+  while(!startNow) {
+    if((fall[1] - rise[1]) >= (2*(note_duration - errorVal)) && (fall[1] - rise[1]) <= (2*(note_duration + errorVal))) {
+      if((fall[2] - rise[2]) >= (2*(note_duration - errorVal)) && (fall[2] - rise[2]) <= (2*(note_duration + errorVal)) && (fall[3] - rise[3]) >= (2*(note_duration - errorVal)) && (fall[3] - rise[3]) <= (2*(note_duration + errorVal))) {
+        startnow = true;
+        return 5;
+      } 
+    } else if(((fall[1] - rise[1]) >= (5*(note_duration - errorVal)) && (fall[1] - rise[1]) <= (5*(note_duration + errorVal)))) {
+      startnow = true;
+      return 3;
+    } else if((fall[2] - rise[2]) >= (5*(note_duration - errorVal)) && (fall[2] - rise[2]) <= (5*(note_duration + errorVal)))) {
+      startnow = true;
+      return 1;
+    } else if((fall[3] - rise[3]) >= (5*(note_duration - errorVal)) && (fall[3] - rise[3]) <= (5*(note_duration + errorVal)))) {
+      startnow = true;
+      return 53;
+    } else if(((fall[1] - rise[1]) >= (6*(note_duration - errorVal)) && (fall[1] - rise[1]) <= (6*(note_duration + errorVal)))) {
+      startnow = true;
+      return 23;
+    } else if((fall[2] - rise[2]) >= (6*(note_duration - errorVal)) && (fall[2] - rise[2]) <= (6*(note_duration + errorVal)))) {
+      startnow = true;
+      return 21;
+    }
+    else if ((fall[3] - rise[3]) >= (6*(note_duration - errorVal)) && (fall[3] - rise[3]) <= (6*(note_duration + errorVal)))) {
+      startnow = true;
+      return 19;
+    }
+
+    //Serial.println("find tempo");
+    int i = 0, j = 0, value = 0;
+    while(i < edgesLength && j < edgesLength) {
+      value = smoothInput(micPIN);
+      //Serial.println(value);
+      if(!high && value == 1) { //rising edge
+          rise[i] = millis();
+          i++;
+      } else if(high && value == 0) { //falling edge
+          fall[j] = millis();
+          j++;
+      } 
+    }
+  }
 }
 
 void printToScreen() {
@@ -209,7 +290,25 @@ void printToScreen() {
 }
 
 void initializeThreshold() {
-  
+  if(octave == 2) {
+    threshold = 0.2;
+    numReadings = 3;
+  } else if(octave == 3) {
+    threshold = 0.3;
+    numReadings = 3;
+  } else if(octave == 4) {
+    threshold = 0.25;
+    numReadings = 3;
+  } else if(octave == 5) {
+    threshold = 0.28;
+    numReadings = 6;
+  } else if(octave == 6) {
+    threshold = 0.2;
+    numReadings = 3;
+  } else if(octave == 7) {
+    threshold = 0.2;
+    numReadings = 3;
+  }
 }
 
 void findManualTempo(double &tempo) {
