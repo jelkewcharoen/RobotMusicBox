@@ -7,9 +7,10 @@
 #include <LiquidCrystal.h>
 
 //tempo stuff
-#define TempoCal 2000
+#define TempoCal 1
 #define TempoPotMax 1023
 #define PwmMax 255
+#define minDuration 50
 
 //Music Notes based on Octave--
 #define C 16.3516
@@ -26,7 +27,7 @@
 #define speakerPIN 5
 #define leftServo 10
 #define rightServo 9
-#define powerSwitch 7
+#define startSwitch 7
 #define modeSwitch 6
 #define powerLED 4
 #define tempoPIN A0
@@ -34,7 +35,7 @@
 #define micPIN A2
 
 //servo
-#define servoRate 45
+#define servoRate 90
 
 //state machine variables
 enum {autoMode, manualMode};
@@ -55,7 +56,6 @@ int beats[] = {2,1,2,1,2,1,1,1,2,1,2,1,1,1,2,1,1,1,6,1,1,1,1,1,1,1,1,1,1,1,1,1,1
 double note_duration = 200, tempo = 5;
 boolean mode_bool = false; //true is auto, false is manual
 int octave = 5, octave_pot, tempo_pot, duration, i_note_index = 0;
-int song_tempo = 250;
 
 //global variables -- tempo and timing
 const int edgesLength = 4, errorVal = 10;
@@ -76,6 +76,7 @@ void setup() {
   pinMode(octavePIN, INPUT); //octave
   pinMode(micPIN, INPUT); //mic
   pinMode(modeSwitch, INPUT);
+  pinMode(startSwitch, INPUT);
 
   //set up outputs
   pinMode(speakerPIN, OUTPUT);
@@ -86,8 +87,6 @@ void setup() {
   //set up the LCD's number of columns and rows:
   lcd.begin(16, 2);
   lcd.clear();
-  //Print a message to the LCD.
-  lcd.print("Starting the Man");
 
   //debug only
   Serial.begin(115200);
@@ -96,71 +95,76 @@ void setup() {
 }
 
 void loop() {
+  if(digitalRead(startSwitch)){
+    printToScreen();
+    switch(mode) {
+      case autoMode:
+        switch(action) {
+          case findTempo:
+            findOctave(octave);
+            initializeThreshold();
+            i_note_index = findAutoTempo();
+            action = playSong;
+            break;
+          case playSong:
+            //play the song
+            duration = beats[i_note_index] * note_duration;
+            
+            tone(speakerPIN, notes[i_note_index]*pow(2,octave), duration);
+            delay(duration);
+              
+            //increment the note counter
+            ++i_note_index;
+            if(i_note_index >= songLength) 
+              i_note_index = 0;
+              
+            motors();
+            break;
+          
+        }
+        break;
   
-  printToScreen();
-  switch(mode) {
-    case autoMode:
-      switch(action) {
-        case findTempo:
-          findOctave(octave);
-          initializeThreshold();
-          i_note_index = findAutoTempo();
-          action = playSong;
-          break;
-        case playSong:
-          //play the song
-          duration = beats[i_note_index] * note_duration;
-          
-          tone(speakerPIN, notes[i_note_index]*pow(2,octave), duration);
-          delay(duration);
+      case manualMode:
+        switch(action) {
+          case findTempo:
+            findManualTempo(tempo);
+            findOctave(octave);
+            action = playSong;
+            break;
+          case playSong:
+            //play the song
+            duration = beats[i_note_index] * 1000/tempo;
             
-          //increment the note counter
-          ++i_note_index;
-          if(i_note_index >= songLength) 
-            i_note_index = 0;
+            tone(speakerPIN, notes[i_note_index]*pow(2,octave), duration);
+            delay(duration);
+              
+            //increment the note counter
+            ++i_note_index;
+            if(i_note_index >= songLength) 
+              i_note_index = 0;
             
-          motors();
-          break;
-        
-      }
-      break;
-
-    case manualMode:
-      switch(action) {
-        case findTempo:
-          findManualTempo(tempo);
-          findOctave(octave);
-          action = playSong;
-          break;
-        case playSong:
-          //play the song
-          duration = beats[i_note_index] * note_duration;
-          
-          tone(speakerPIN, notes[i_note_index]*pow(2,octave), duration);
-          delay(duration);
+            motors();
             
-          //increment the note counter
-          ++i_note_index;
-          if(i_note_index >= songLength) 
-            i_note_index = 0;
+            action = findTempo;
+            break;
           
-          motors();
-          
-          action = findTempo;
-          break;
-        
-      }
-      break;
-    
+        }
+        break;
+    }
+    printToScreen();
+    checkMode(mode_bool);
+    if(mode_bool) {
+      mode = autoMode;
+    } else {
+      mode = manualMode;
+    }
+     lcd.clear();
   }
-  printToScreen();
-  //Serial.println(mode);
-  //Serial.println(action);
-  checkMode(mode_bool);
-  if(mode_bool) {
-    mode = autoMode;
-  } else {
-    mode = manualMode;
+  else{
+     lcd.setCursor(0, 0);
+     lcd.print("The wizard is");
+     lcd.setCursor(0, 1);
+     lcd.print("taking 5 ");
   }
 }
 
@@ -232,27 +236,27 @@ int findAutoStart(unsigned long rise[], unsigned long fall[]) {
   while(!startNow) {
     if((fall[1] - rise[1]) >= (2*(note_duration - errorVal)) && (fall[1] - rise[1]) <= (2*(note_duration + errorVal))) {
       if((fall[2] - rise[2]) >= (2*(note_duration - errorVal)) && (fall[2] - rise[2]) <= (2*(note_duration + errorVal)) && (fall[3] - rise[3]) >= (2*(note_duration - errorVal)) && (fall[3] - rise[3]) <= (2*(note_duration + errorVal))) {
-        startnow = true;
+        startNow = true;
         return 5;
       } 
-    } else if(((fall[1] - rise[1]) >= (5*(note_duration - errorVal)) && (fall[1] - rise[1]) <= (5*(note_duration + errorVal)))) {
-      startnow = true;
+    } else if((fall[1] - rise[1]) >= (5*(note_duration - errorVal)) && ((fall[1] - rise[1]) <= (5*(note_duration + errorVal)))) {
+      startNow = true;
       return 3;
-    } else if((fall[2] - rise[2]) >= (5*(note_duration - errorVal)) && (fall[2] - rise[2]) <= (5*(note_duration + errorVal)))) {
-      startnow = true;
+    } else if((fall[2] - rise[2]) >= (5*(note_duration - errorVal)) && ((fall[2] - rise[2]) <= (5*(note_duration + errorVal)))) {
+      startNow = true;
       return 1;
-    } else if((fall[3] - rise[3]) >= (5*(note_duration - errorVal)) && (fall[3] - rise[3]) <= (5*(note_duration + errorVal)))) {
-      startnow = true;
+    } else if((fall[3] - rise[3]) >= (5*(note_duration - errorVal)) && ((fall[3] - rise[3]) <= (5*(note_duration + errorVal)))) {
+      startNow = true;
       return 53;
-    } else if(((fall[1] - rise[1]) >= (6*(note_duration - errorVal)) && (fall[1] - rise[1]) <= (6*(note_duration + errorVal)))) {
-      startnow = true;
+    } else if((fall[1] - rise[1]) >= (6*(note_duration - errorVal)) && ((fall[1] - rise[1]) <= (6*(note_duration + errorVal)))) {
+      startNow = true;
       return 23;
-    } else if((fall[2] - rise[2]) >= (6*(note_duration - errorVal)) && (fall[2] - rise[2]) <= (6*(note_duration + errorVal)))) {
-      startnow = true;
+    } else if((fall[2] - rise[2]) >= (6*(note_duration - errorVal)) && ((fall[2] - rise[2]) <= (6*(note_duration + errorVal)))) {
+      startNow = true;
       return 21;
     }
-    else if ((fall[3] - rise[3]) >= (6*(note_duration - errorVal)) && (fall[3] - rise[3]) <= (6*(note_duration + errorVal)))) {
-      startnow = true;
+    else if ((fall[3] - rise[3]) >= (6*(note_duration - errorVal)) && ((fall[3] - rise[3]) <= (6*(note_duration + errorVal)))) {
+      startNow = true;
       return 19;
     }
 
@@ -314,13 +318,8 @@ void initializeThreshold() {
 void findManualTempo(double &tempo) {
   //read the tempo pot
   int tempo_pot = analogRead(tempoPIN);
-      
-  note_duration = song_tempo*float(tempo_pot)/TempoCal; //read the tempo POT       
-  //Serial.println(tempo);
-//  if(note_duration<100){
-//    note_duration = 100;
-//  }
-  tempo = 1000/note_duration;
+  note_duration = (float(tempo_pot)-460) + minDuration; //read the tempo POT  
+  tempo = int(1000/note_duration);
 }
 
 void findOctave(int &octave) {

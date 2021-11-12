@@ -23,8 +23,8 @@ void setup() {
     threshold = 7;
     numReadings = 19;
   } else if(octave == 5) {
-    threshold = 4;
-    numReadings = 10;
+    threshold = 380;
+    numReadings = 70;
   } else if(octave == 6) {
     threshold = 0.2;
     numReadings = 3;
@@ -44,20 +44,20 @@ void setup() {
 
 
 void loop() {
-//  Serial.println(value);
-//  start = false;
-  Serial.println("start loop");
   start = false;
-  while(!start) {
-    findTempo(tempo);
-//    Serial.println(tempo);
+  //Serial.println("start loop");
+   Serial.println(analogRead(A2));
+  //while(!start) {
+   
+    //findTempo(tempo);
+    //Serial.println(tempo);
 //    start = true;
-  }
+ // }
 //  while(start) {
 //    //play song
 //  }
-//  //value = smoothInput(A2);
-//  //Serial.println(value);
+  value = smoothInput(A2);
+  //Serial.println(value);
   
 }
 
@@ -66,7 +66,7 @@ int smoothInput(int sensorPin) {
 
   for (int i = 0; i < numReadings; i++){
     //Serial.print("data: ");
-    data = analogRead(sensorPin)-151;
+    data = analogRead(sensorPin);
     data = abs(data);
 //    Serial.println(data);
     value += data;
