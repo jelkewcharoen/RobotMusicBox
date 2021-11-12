@@ -48,17 +48,17 @@ const int rs = 13, en = 12, d4 = 11, d5 = 8, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 //Row Row Row Your Boat
-int songLength = 54;  
+int songLength = 54;
 int notes[] = {C, rest, C, rest, C, rest, D, rest, E, rest, E, rest, D, rest, E, rest, F, rest, G, rest, high_C, rest, high_C, rest, high_C, rest, G, rest, G, rest, G, rest, E, rest, E, rest, E, rest, C, rest, C, rest, C, rest, G, rest, F, rest, E, rest, D, rest, C, rest};
-int beats[] = {2,1,2,1,2,1,1,1,2,1,2,1,1,1,2,1,1,1,6,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,2,1,1,1,5,1};
+int beats[] = {2, 1, 2, 1, 2, 1, 1, 1, 2, 1, 2, 1, 1, 1, 2, 1, 1, 1, 6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 5, 1};
 
 //global variables -- ui
 double note_duration = 200, tempo = 5;
-boolean mode_bool = false; //true is auto, false is manual
+bool mode_bool = false; //true is auto, false is manual
 int octave = 5, octave_pot, tempo_pot, duration, i_note_index = 0;
 
 //global variables -- tempo and timing
-const int edgesLength = 4, errorVal = 10;
+const int edgesLength = 10, errorVal = 30;
 double threshold;
 int numReadings;
 bool high;
@@ -95,37 +95,37 @@ void setup() {
 }
 
 void loop() {
-  if(digitalRead(startSwitch)){
+  if (digitalRead(startSwitch)) {
     printToScreen();
-    switch(mode) {
+    switch (mode) {
       case autoMode:
-        switch(action) {
+        switch (action) {
           case findTempo:
             findOctave(octave);
             initializeThreshold();
-            i_note_index = findAutoTempo();
+            i_note_index = findAutoTempo(tempo);
             action = playSong;
             break;
           case playSong:
             //play the song
             duration = beats[i_note_index] * note_duration;
-            
-            tone(speakerPIN, notes[i_note_index]*pow(2,octave), duration);
+
+            tone(speakerPIN, notes[i_note_index]*pow(2, octave), duration);
             delay(duration);
-              
+
             //increment the note counter
             ++i_note_index;
-            if(i_note_index >= songLength) 
+            if (i_note_index >= songLength)
               i_note_index = 0;
-              
+
             motors();
             break;
-          
+
         }
         break;
-  
+
       case manualMode:
-        switch(action) {
+        switch (action) {
           case findTempo:
             findManualTempo(tempo);
             findOctave(octave);
@@ -133,55 +133,54 @@ void loop() {
             break;
           case playSong:
             //play the song
-            duration = beats[i_note_index] * 1000/tempo;
-            
-            tone(speakerPIN, notes[i_note_index]*pow(2,octave), duration);
+            duration = beats[i_note_index] * 1000 / tempo;
+
+            tone(speakerPIN, notes[i_note_index]*pow(2, octave), duration);
             delay(duration);
-              
+
             //increment the note counter
             ++i_note_index;
-            if(i_note_index >= songLength) 
+            if (i_note_index >= songLength)
               i_note_index = 0;
-            
+
             motors();
-            
+
             action = findTempo;
             break;
-          
+
         }
         break;
     }
-    printToScreen();
     checkMode(mode_bool);
-    if(mode_bool) {
+    if (mode_bool) {
       mode = autoMode;
     } else {
       mode = manualMode;
     }
-     lcd.clear();
+    lcd.clear();
   }
-  else{
-     lcd.setCursor(0, 0);
-     lcd.print("The wizard is");
-     lcd.setCursor(0, 1);
-     lcd.print("taking 5 ");
+  else {
+    lcd.setCursor(0, 0);
+    lcd.print("The wizard is");
+    lcd.setCursor(0, 1);
+    lcd.print("taking 5 ");
   }
 }
 
 void motors() {
-  //set the servos 
+  //set the servos
   //Serial.println(servo_counter);
-  if(servo_dir){
-    servo_left.write(180-servo_counter);
+  if (servo_dir) {
+    servo_left.write(180 - servo_counter);
     servo_right.write(servo_counter);
   }
-  else{
+  else {
     servo_left.write(servo_counter);
-    servo_right.write(180-servo_counter);
+    servo_right.write(180 - servo_counter);
   }
 
-  servo_counter+=servoRate; 
-  if(servo_counter>180){
+  servo_counter += servoRate;
+  if (servo_counter > 180) {
     servo_counter = 0;
     servo_dir = !servo_dir; //flip direction
   }
@@ -190,88 +189,93 @@ void motors() {
 int smoothInput(int sensorPin) {
   double value = 0, data = 0;
 
-  for (int i = 0; i < numReadings; i++){
-    //Serial.print("data: ");
-    data = (double)analogRead(micPIN)/512-1;
+  for (int i = 0; i < numReadings; i++) {
+    //    Serial.print("data: ");
+    data = analogRead(sensorPin);
     data = abs(data);
-//    Serial.println(data);
+    //     Serial.println(data);
     value += data;
     //Serial.println(value);
   }
 
   // Take an average of all the readings.
-  value = value / (double)numReadings;
+  value = (double)value / (double)numReadings;
+  //  Serial.println(value);
+  //Serial.println(" ");
 
-  if(value > threshold)
+  if (value > threshold)
     return 1;
   else
     return 0;
 }
 
-int findAutoTempo() {
+int findAutoTempo(double &tempo) {
   unsigned long rise[edgesLength], fall[edgesLength];
-  //Serial.println("find tempo");
-  int i = 0, j = 0, value = 0;
-  while(i < edgesLength && j < edgesLength) {
-      value = smoothInput(micPIN);
-      //Serial.println(value);
-      if(!high && value == 1) { //rising edge
-          rise[i] = millis();
-          i++;
-      } else if(high && value == 0) { //falling edge
-          fall[j] = millis();
-          j++;
-      } 
+  //  Serial.println("find tempo");
+  int i = 0, j = 0;
+  double total = 0;
+  while (i < edgesLength || j < edgesLength) {
+    int value = smoothInput(micPIN);
+    //    Serial.println(value);
+    if (!high && value == 1) { //rising edge
+      high = true;
+      rise[i] = millis();
+      //          Serial.print("rise: ");
+      //          Serial.println(rise[i]);
+      i++;
+    } else if (high && value == 0) { //falling edge
+      high = false;
+      fall[j] = millis();
+      //          Serial.print("fall: ");
+      //          Serial.println(fall[j]);
+      j++;
+    }
   }
 
-  note_duration = ((rise[1] - fall[0]) + (rise[2] - fall[1]) + (rise[3] - fall[2])) / (edgesLength - 1);
-//  Serial.println(note);
-  tempo = 1000/note_duration; //beats per second
+  double deleted = 0;
+  for (int i = 0; i < (edgesLength - 1); i++) {
+    //    Serial.print("difference: ");
+    //    Serial.println(rise[i+1] - fall[i]);
+    if ((rise[i + 1] - fall[i] >= 100) && (rise[i + 1] - fall[i] < 1000))
+      total += rise[i + 1] - fall[i];
+    else
+      deleted++;
+  }
+  //  Serial.println(rise[1]-fall[0]);
+  //  Serial.println(rise[2]-fall[1]);
+  //  Serial.println(rise[3]-fall[2]);
 
-  return findAutoStart(rise, fall);
+  double samples = (edgesLength - deleted - 1);
+  //  Serial.println(total);
+  //  Serial.println(samples);
+  double note = total / samples;
+  //  Serial.println(note);
+  note_duration = note;
+  tempo = 1000 / note_duration; //beats per second
+  Serial.println("finding start");
+  return findAutoStart();
 }
 
-int findAutoStart(unsigned long rise[], unsigned long fall[]) {
+int findAutoStart() {
+  unsigned long rise = 0, fall = 0;
   bool startNow = false;
-  while(!startNow) {
-    if((fall[1] - rise[1]) >= (2*(note_duration - errorVal)) && (fall[1] - rise[1]) <= (2*(note_duration + errorVal))) {
-      if((fall[2] - rise[2]) >= (2*(note_duration - errorVal)) && (fall[2] - rise[2]) <= (2*(note_duration + errorVal)) && (fall[3] - rise[3]) >= (2*(note_duration - errorVal)) && (fall[3] - rise[3]) <= (2*(note_duration + errorVal))) {
-        startNow = true;
-        return 5;
-      } 
-    } else if((fall[1] - rise[1]) >= (5*(note_duration - errorVal)) && ((fall[1] - rise[1]) <= (5*(note_duration + errorVal)))) {
-      startNow = true;
-      return 3;
-    } else if((fall[2] - rise[2]) >= (5*(note_duration - errorVal)) && ((fall[2] - rise[2]) <= (5*(note_duration + errorVal)))) {
-      startNow = true;
-      return 1;
-    } else if((fall[3] - rise[3]) >= (5*(note_duration - errorVal)) && ((fall[3] - rise[3]) <= (5*(note_duration + errorVal)))) {
-      startNow = true;
+  while(true) {
+    while (true) {
+      int value = smoothInput(micPIN);
+      if (!high && value == 1) { //rising edge
+        high = true;
+        rise = millis();
+      } else if (high && value == 0) { //falling edge
+        high = false;
+        fall = millis();
+        break;
+      }
+    }
+  
+    if((fall - rise) >= (5*note_duration-errorVal) && (fall - rise) <= (5*note_duration+errorVal)) {
       return 53;
-    } else if((fall[1] - rise[1]) >= (6*(note_duration - errorVal)) && ((fall[1] - rise[1]) <= (6*(note_duration + errorVal)))) {
-      startNow = true;
-      return 23;
-    } else if((fall[2] - rise[2]) >= (6*(note_duration - errorVal)) && ((fall[2] - rise[2]) <= (6*(note_duration + errorVal)))) {
-      startNow = true;
-      return 21;
-    }
-    else if ((fall[3] - rise[3]) >= (6*(note_duration - errorVal)) && ((fall[3] - rise[3]) <= (6*(note_duration + errorVal)))) {
-      startNow = true;
+    } else if((fall - rise) >= (6*note_duration-errorVal) && (fall - rise) <= (6*note_duration+errorVal)){
       return 19;
-    }
-
-    //Serial.println("find tempo");
-    int i = 0, j = 0, value = 0;
-    while(i < edgesLength && j < edgesLength) {
-      value = smoothInput(micPIN);
-      //Serial.println(value);
-      if(!high && value == 1) { //rising edge
-          rise[i] = millis();
-          i++;
-      } else if(high && value == 0) { //falling edge
-          fall[j] = millis();
-          j++;
-      } 
     }
   }
 }
@@ -279,9 +283,9 @@ int findAutoStart(unsigned long rise[], unsigned long fall[]) {
 void printToScreen() {
   lcd.clear();
   lcd.setCursor(0, 0);
-  if(mode_bool) 
+  if (mode_bool)
     lcd.print("Auto  ");
-  else 
+  else
     lcd.print("Manual");
   lcd.setCursor(0, 1);
   lcd.print("Tempo: ");
@@ -294,45 +298,45 @@ void printToScreen() {
 }
 
 void initializeThreshold() {
-  if(octave == 2) {
-    threshold = 0.2;
-    numReadings = 3;
-  } else if(octave == 3) {
-    threshold = 0.3;
-    numReadings = 3;
-  } else if(octave == 4) {
-    threshold = 0.25;
-    numReadings = 3;
-  } else if(octave == 5) {
-    threshold = 0.28;
-    numReadings = 6;
-  } else if(octave == 6) {
-    threshold = 0.2;
-    numReadings = 3;
-  } else if(octave == 7) {
-    threshold = 0.2;
-    numReadings = 3;
+  if (octave == 2) {
+    threshold = 180;
+    numReadings = 60;
+  } else if (octave == 3) {
+    threshold = 180;
+    numReadings = 60;
+  } else if (octave == 4) {
+    threshold = 180;
+    numReadings = 60;
+  } else if (octave == 5) {
+    threshold = 180;
+    numReadings = 60;
+  } else if (octave == 6) {
+    threshold = 180;
+    numReadings = 60;
+  } else if (octave == 7) {
+    threshold = 180;
+    numReadings = 60;
   }
 }
 
 void findManualTempo(double &tempo) {
   //read the tempo pot
   int tempo_pot = analogRead(tempoPIN);
-  note_duration = (float(tempo_pot)-460) + minDuration; //read the tempo POT  
-  tempo = int(1000/note_duration);
+  note_duration = (float(tempo_pot) - 460) + minDuration; //read the tempo POT
+  tempo = 1000 / note_duration;
 }
 
 void findOctave(int &octave) {
   octave_pot = analogRead(octavePIN);
-  if(octave_pot > 511) {
-      octave = 5;
+  if (octave_pot > 511) {
+    octave = 5;
   } else {
-      octave = 4;
+    octave = 4;
   }
 }
 
-void checkMode(boolean &mode_bool) {
-  if(digitalRead(modeSwitch)) {
+void checkMode(bool &mode_bool) {
+  if (digitalRead(modeSwitch)) {
     mode_bool = true;
   } else {
     mode_bool = false;
